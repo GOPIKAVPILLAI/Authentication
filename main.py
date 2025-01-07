@@ -7,11 +7,12 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from itsdangerous import URLSafeSerializer
 
 SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
-
+auth_s = URLSafeSerializer("secret key", "auth")
 
 fake_users_db = {
     "johndoe": {
@@ -50,7 +51,6 @@ class UserInDB(User):
 
 class Subscriber(UserInDB):
     secret_token : str
-    secret_key :str
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -127,7 +127,7 @@ async def get_current_active_user(
 
 @app.post("/token")
 async def login_for_access_token(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()] 
 ) -> Token:
     user = authenticate_user(fake_users_db, form_data.username, form_data.password)
     if not user:
@@ -145,18 +145,33 @@ async def login_for_access_token(
 
 @app.post("/subcribe/", response_model=Subscriber| str)
 async def subscriber(user_in: User,password):
+    if user_in.username in fake_users_db:
+        return "The given username already exist"
     if user_in.role != 'subscriber':
         return "Only subscriber are allowed"
     hashed_password = get_password_hash(password)
     user=dict(user_in.copy())
     user["hashed_password"]=hashed_password
     fake_users_db[user_in.username]=user
-    return user
+    token = auth_s.dumps({"username":user["username"]})
+    user["secret_key"]=token
+    return user["secret_key"]
 
 
-@app.post("/create/", response_model=UserInDB)
+@app.get("/subscriber_login/")
+async def subscriber_login(token):
+    data=auth_s.loads(token)
+    if data["username"] in fake_users_db and fake_users_db[data["username"]]["role"]=="subscriber":
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+        data={"sub": data["username"]}, expires_delta=access_token_expires
+    )
+        return Token(access_token=access_token, token_type="bearer")
+
+@app.post("/create/", response_model=UserInDB|str)
 async def create_user(user_in: User,password):
-    
+    if user_in.username in fake_users_db:
+        return "The given username already exist"
     hashed_password = get_password_hash(password)
     user=dict(user_in.copy())
     user["hashed_password"]=hashed_password

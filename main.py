@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
-
+from enum import Enum
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -8,8 +8,6 @@ from jwt.exceptions import InvalidTokenError
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-# to get a string like this run:
-# openssl rand -hex 32
 SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -20,11 +18,15 @@ fake_users_db = {
         "username": "johndoe",
         "full_name": "John Doe",
         "email": "johndoe@example.com",
+        "role":"admin",
         "hashed_password": "$2b$12$.IcwGgKzW/rMGe7Yw8rE0uJMNsivx5yaPQx.pdAEIimCcu7Jjj1sO",
         "disabled": False,
     }
 }
-
+class Role(str, Enum):
+    business = "business"
+    subscriber = "subscriber"
+    admin = "admin"
 
 class Token(BaseModel):
     access_token: str
@@ -39,11 +41,16 @@ class User(BaseModel):
     username: str
     email: str | None = None
     full_name: str | None = None
+    role : Role
     disabled: bool | None = None
 
 
 class UserInDB(User):
     hashed_password: str
+
+class Subscriber(UserInDB):
+    secret_token : str
+    secret_key :str
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -52,6 +59,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
+@app.get("/users/")
+def listed_users():
+    return fake_users_db
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -133,17 +143,25 @@ async def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-def fake_save_user(user_in: User,password):
+@app.post("/subcribe/", response_model=Subscriber| str)
+async def subscriber(user_in: User,password):
+    if user_in.role != 'subscriber':
+        return "Only subscriber are allowed"
     hashed_password = get_password_hash(password)
-    user_in_db = UserInDB(**user_in.dict(), hashed_password=hashed_password)
-    print("User saved! ..not really")
-    return user_in_db
+    user=dict(user_in.copy())
+    user["hashed_password"]=hashed_password
+    fake_users_db[user_in.username]=user
+    return user
 
 
 @app.post("/create/", response_model=UserInDB)
 async def create_user(user_in: User,password):
-    user_saved = fake_save_user(user_in,password=password)
-    return UserInDB(username="Gopika")
+    
+    hashed_password = get_password_hash(password)
+    user=dict(user_in.copy())
+    user["hashed_password"]=hashed_password
+    fake_users_db[user_in.username]=user
+    return user
 
 @app.get("/users/me/", response_model=User)
 async def read_users_me(
@@ -152,8 +170,3 @@ async def read_users_me(
     return current_user
 
 
-@app.get("/users/me/items/")
-async def read_own_items(
-    current_user: Annotated[User, Depends(get_current_active_user)],
-):
-    return [{"item_id": "Foo", "owner": current_user.username}]

@@ -1,17 +1,8 @@
 from pydantic import BaseModel,Field
 from enum import Enum
+from datetime import datetime
 
 
-fake_users_db = {
-    "johndoe": {
-        "username": "johndoe",
-        "full_name": "John Doe",
-        "email": "johndoe@example.com",
-        "role":"admin",
-        "hashed_password": "$2b$12$.IcwGgKzW/rMGe7Yw8rE0uJMNsivx5yaPQx.pdAEIimCcu7Jjj1sO",
-        "disabled": False,
-    }
-}
 class Role(str, Enum):
     business = "business"
     subscriber = "subscriber"
@@ -31,6 +22,7 @@ class User(BaseModel):
     email: str
     full_name: str | None = None
     role : Role
+    verified:bool=Field(default=False) 
     disabled: bool=Field(default=False) 
 
 class UserLogin(BaseModel):
@@ -43,3 +35,6 @@ class UserInDB(User):
 class Subscriber(UserInDB):
     secret_token : str
 
+class UserRegistration(BaseModel):
+    email:str
+    otp:str

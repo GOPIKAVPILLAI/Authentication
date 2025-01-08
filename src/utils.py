@@ -25,8 +25,7 @@ try:
     client.admin.command('ping')
     db=client["test"]
     collection=db["user"]
-    print(client['test'])
-    print("Pinged your deployment. You successfully connected to MongoDB!")
+    subcriber_collection=db["subscriber"]
 except Exception as e:
     print(e)
 # db = client['FastApi']

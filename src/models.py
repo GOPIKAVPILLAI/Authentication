@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel,Field
 from enum import Enum
 
 
@@ -23,19 +23,22 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    username: str | None = None
+    email: str | None = None
 
 
 class User(BaseModel):
-    username: str
-    email: str | None = None
+    username: str | None = None
+    email: str
     full_name: str | None = None
     role : Role
-    disabled: bool | None = None
+    disabled: bool=Field(default=False) 
 
+class UserLogin(BaseModel):
+    email : str
+    password : str
 
 class UserInDB(User):
-    hashed_password: str
+    password: str
 
 class Subscriber(UserInDB):
     secret_token : str

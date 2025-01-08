@@ -1,4 +1,4 @@
-from src.models import User,Token,Subscriber,UserInDB,fake_users_db,UserLogin
+from src.models import User,Token,Subscriber,UserInDB,UserLogin
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 import jwt
